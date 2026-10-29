@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="th" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dengue Alert System - ระบบบันทึกและปักหมุดพิกัดไข้เลือดออกสำหรับ อสม.</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        vhv: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                        },
+                        skybrand: {
+                            50: '#f0f9ff',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Kanit', 'Prompt', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qijlJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { font-family: 'Kanit', sans-serif; }
+        #map { height: calc(100vh - 64px); min-height: 420px; }
+        
+        .pulse-marker-red {
+            background-color: #ef4444;
+            border-radius: 50%;
+            box-shadow: 0 0 0 rgba(239, 68, 68, 0.7);
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .pulse-marker-yellow {
+            background-color: #f59e0b;
+            border-radius: 50%;
+            box-shadow: 0 0 0 rgba(245, 158, 11, 0.7);
+            animation: pulse-yellow 2s infinite;
+        }
+        @keyframes pulse-yellow {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800 antialiased bg-slate-100 overflow-x-hidden">
+
+    <!-- Header Navigation for VHV System -->
+    <header class="bg-gradient-to-r from-vhv-800 via-vhv-700 to-teal-800 text-white shadow-md z-30 sticky top-0">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- App Title -->
+                <div class="flex items-center space-x-3">
+                    <div class="bg-white/15 p-2 rounded-xl backdrop-blur-md border border-white/20">
+                        <i class="fa-solid fa-user-doctor text-2xl text-emerald-300"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-base sm:text-lg leading-tight">ระบบบันทึกและปักหมุดไข้เลือดออก (อสม.)</h1>
+                        <p class="text-xs text-emerald-100 font-light hidden sm:block">เจ้าหน้าที่ อสม. และสาธารณสุขชุมชน</p>
+                    </div>
+                </div>
+
+                <!-- User Profile & Login Modal Trigger -->
+                <div class="flex items-center space-x-2">
+                    <div id="vhvProfileBadge" class="hidden sm:flex items-center gap-2 bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full border border-white/20 text-xs">
+                        <i class="fa-solid fa-id-card text-amber-300"></i>
+                        <span id="vhvProfileText">อสม. สมศรี (รหัส 4501)</span>
+                    </div>
+                    <button onclick="openVhvLoginModal()" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg border border-emerald-300/40 font-medium transition shadow-sm active:scale-95 flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-gear"></i> ข้อมูล อสม.
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main App Content -->
+    <div class="flex-1 flex flex-col md:flex-row relative overflow-hidden">
+
+        <!-- Left Sidebar Section -->
+        <aside id="sidebar" class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col z-20 shadow-lg max-h-[48vh] md:max-h-full overflow-y-auto">
+            
+            <!-- Quick Stat Summary Cards -->
+            <div class="p-3.5 bg-slate-50 border-b border-slate-200">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500"><i class="fa-solid fa-chart-pie text-vhv-600"></i> สรุปข้อมูลในพื้นที่</span>
+                    <span class="text-[11px] text-slate-400" id="lastUpdated">อัปเดตล่าสุด: วันนี้</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="bg-rose-50 border border-rose-200 rounded-xl p-2 text-center shadow-sm">
+                        <span class="block text-lg font-bold text-rose-600" id="statCases">0</span>
+                        <span class="text-[10px] sm:text-xs font-medium text-rose-800">ผู้ป่วยไข้เลือดออก</span>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-2 text-center shadow-sm">
+                        <span class="block text-lg font-bold text-amber-600" id="statLarva">0</span>
+                        <span class="text-[10px] sm:text-xs font-medium text-amber-800">จุดพบแหล่งลูกน้ำ</span>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-center shadow-sm">
+                        <span class="block text-lg font-bold text-emerald-600" id="statControlled">0</span>
+                        <span class="text-[10px] sm:text-xs font-medium text-emerald-800">พื้นที่พ่นยาแล้ว</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Navigation for VHV Operations -->
+            <div class="flex border-b border-slate-200 bg-white sticky top-0 z-10">
+                <button onclick="switchTab('mapControl')" id="tab-mapControl" class="flex-1 py-2.5 px-2 text-xs font-medium text-vhv-700 border-b-2 border-vhv-600 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-map-location-dot"></i> รายการหมุดข้อมูล
+                </button>
+                <button onclick="switchTab('reportForm')" id="tab-reportForm" class="flex-1 py-2.5 px-2 text-xs font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-location-dot text-rose-500"></i> ปักหมุดข้อมูล
+                </button>
+                <button onclick="switchTab('exportTab')" id="tab-exportTab" class="flex-1 py-2.5 px-2 text-xs font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-file-export text-sky-600"></i> ส่งออกข้อมูล
+                </button>
+            </div>
+
+            <!-- TAB 1: Pin List & Filtering -->
+            <div id="panel-mapControl" class="p-3.5 space-y-3 flex-1 overflow-y-auto">
+                
+                <!-- Pin Banner Buttons -->
+                <div class="bg-vhv-50 border border-vhv-200 p-3 rounded-xl space-y-2">
+                    <span class="text-xs font-bold text-vhv-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-crosshairs text-vhv-600"></i> เครื่องมือการปักหมุดตำแหน่ง
+                    </span>
+                    <div class="flex gap-2">
+                        <button onclick="enableClickToPin()" id="pinClickBtn" class="flex-1 bg-vhv-600 hover:bg-vhv-700 text-white text-xs py-2 px-2.5 rounded-lg font-medium shadow-sm transition flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-hand-pointer"></i> คลิกบนแผนที่
+                        </button>
+                        <button onclick="pinCurrentGPS()" class="flex-1 bg-skybrand-600 hover:bg-skybrand-700 text-white text-xs py-2 px-2.5 rounded-lg font-medium shadow-sm transition flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-location-crosshairs"></i> ใช้ GPS ปัจจุบัน
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search and Filters -->
+                <div class="space-y-2">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchInput" oninput="filterMarkers()" placeholder="ค้นหาชื่อผู้ป่วย, บ้านเลขที่, หมู่บ้าน..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500 focus:outline-none">
+                    </div>
+                    <div class="flex gap-1 overflow-x-auto pb-1 text-xs">
+                        <button onclick="setFilter('ALL')" class="filter-btn active-filter px-2.5 py-1 rounded-full bg-slate-800 text-white font-medium whitespace-nowrap">ทั้งหมด</button>
+                        <button onclick="setFilter('CASE')" class="filter-btn px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 font-medium border border-rose-200 whitespace-nowrap">🔴 ผู้ป่วย</button>
+                        <button onclick="setFilter('LARVA')" class="filter-btn px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 font-medium border border-amber-200 whitespace-nowrap">🟡 แหล่งลูกน้ำ</button>
+                        <button onclick="setFilter('CONTROLLED')" class="filter-btn px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium border border-emerald-200 whitespace-nowrap">🟢 พ่นยาแล้ว</button>
+                    </div>
+                </div>
+
+                <!-- List Container for Pins -->
+                <div class="space-y-2 pt-1" id="markerListContainer">
+                    <!-- Dynamic rendering -->
+                </div>
+            </div>
+
+            <!-- TAB 2: Pinning Form for VHV -->
+            <div id="panel-reportForm" class="p-3.5 space-y-3.5 hidden flex-1 overflow-y-auto">
+                <div class="border-b border-slate-100 pb-2">
+                    <h3 class="font-bold text-sm text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-file-circle-plus text-vhv-600"></i> ฟอร์มบันทึกและปักหมุดข้อมูล อสม.
+                    </h3>
+                    <p class="text-xs text-slate-500">กรอกรายละเอียดเพื่อเก็บบันทึกเป็นฐานข้อมูลพิกัดพื้นที่</p>
+                </div>
+
+                <form id="pinDataForm" onsubmit="handleFormSubmit(event)" class="space-y-3">
+                    <input type="hidden" id="formLat">
+                    <input type="hidden" id="formLng">
+                    <input type="hidden" id="editingId">
+
+                    <!-- Event Type -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">ประเภทเหตุการณ์/ข้อมูล <span class="text-rose-500">*</span></label>
+                        <select id="formType" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500 focus:outline-none" required>
+                            <option value="CASE">🔴 พบผู้ป่วยไข้เลือดออก</option>
+                            <option value="LARVA">🟡 พบแหล่งลูกน้ำยุงลายหนาแน่น</option>
+                            <option value="CONTROLLED">🟢 พื้นที่ดำเนินการฉีดพ่นหมอกควัน/ควบคุมแล้ว</option>
+                        </select>
+                    </div>
+
+                    <!-- Resident / House Name & House Number -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-สกุล ผู้ป่วย / ชื่อบ้าน <span class="text-rose-500">*</span></label>
+                            <input type="text" id="formResidentName" placeholder="เช่น นายสมศักดิ์ รักดี" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500 focus:outline-none" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">บ้านเลขที่ <span class="text-rose-500">*</span></label>
+                            <input type="text" id="formHouseNo" placeholder="12/3" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500 focus:outline-none" required>
+                        </div>
+                    </div>
+
+                    <!-- Village/Community & Date -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">หมู่ที่ / ชุมชน <span class="text-rose-500">*</span></label>
+                            <input type="text" id="formCommunity" placeholder="เช่น หมู่ 3 ชุมชนวัดตานาน" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500 focus:outline-none" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">วันที่พบเหตุ <span class="text-rose-500">*</span></label>
+                            <input type="date" id="formDate" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500 focus:outline-none" required>
+                        </div>
+                    </div>
+
+                    <!-- Co-residents count -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            <i class="fa-solid fa-users text-vhv-600"></i> จำนวนผู้อยู่อาศัยร่วมบ้าน (คน) <span class="text-rose-500">*</span>
+                        </label>
+                        <input type="number" id="formHouseholdMembers" min="1" max="50" value="1" placeholder="ระบุจำนวนสมาชิกในบ้าน" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500 focus:outline-none" required>
+                    </div>
+
+                    <!-- Coordinates Selector -->
+                    <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-semibold text-slate-700">พิกัดแผนที่ (Latitude, Longitude)</span>
+                            <button type="button" onclick="getCurrentLocationForForm()" class="text-[11px] text-skybrand-600 font-medium hover:underline flex items-center gap-1">
+                                <i class="fa-solid fa-location-crosshairs"></i> ดึง GPS ปัจจุบัน
+                            </button>
+                        </div>
+                        <div id="coordsDisplay" class="text-xs font-mono text-slate-500">
+                            ยังไม่ได้ระบุพิกัด (คลิกแผนที่หรือกดดึง GPS)
+                        </div>
+                    </div>
+
+                    <!-- Photos Attachment (Up to 5 images) -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-semibold text-slate-700">
+                                <i class="fa-solid fa-camera text-vhv-600"></i> แนบรูปถ่ายจุดเกิดเหตุ/สถานที่ (สูงสุด 5 รูป)
+                            </label>
+                            <span id="imageCountBadge" class="text-[10px] text-slate-500">0/5 รูป</span>
+                        </div>
+                        
+                        <!-- Upload Dropzone -->
+                        <div id="imageUploadArea" class="border-2 border-dashed border-slate-300 hover:border-vhv-500 rounded-xl p-3 text-center bg-slate-50 transition cursor-pointer" onclick="document.getElementById('imageFileInput').click()">
+                            <i class="fa-solid fa-cloud-arrow-up text-xl text-vhv-600 mb-1"></i>
+                            <p class="text-xs text-slate-600">คลิกเพื่อเลือกรูปถ่าย หรือถ่ายภาพจากกล้อง</p>
+                            <p class="text-[10px] text-slate-400">รองรับไฟล์ JPG, PNG (ไม่เกิน 5 รูป)</p>
+                            <input type="file" id="imageFileInput" accept="image/*" multiple class="hidden" onchange="handleImageSelection(event)">
+                        </div>
+
+                        <!-- Image Preview List -->
+                        <div id="imagePreviewGrid" class="grid grid-cols-5 gap-2 mt-2">
+                            <!-- Thumbnails render here -->
+                        </div>
+                    </div>
+
+                    <!-- Additional Description -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">รายละเอียดเพิ่มเติม / หมายเหตุ</label>
+                        <textarea id="formDescription" rows="2" placeholder="ระบุประเภทภาชนะน้ำขัง หรือประวัติอาการผู้ป่วย..." class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500 focus:outline-none"></textarea>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-2 pt-1">
+                        <button type="button" onclick="resetForm()" class="w-1/3 py-2 text-xs font-medium text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-lg transition">
+                            ยกเลิก
+                        </button>
+                        <button type="submit" class="w-2/3 py-2 text-xs font-semibold text-white bg-vhv-600 hover:bg-vhv-700 rounded-lg shadow transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-floppy-disk"></i> <span id="submitBtnText">บันทึกข้อมูลหมุด</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- TAB 3: Data Export & Management -->
+            <div id="panel-exportTab" class="p-3.5 space-y-4 hidden flex-1 overflow-y-auto">
+                <div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 p-3.5 rounded-xl space-y-2">
+                    <h3 class="font-bold text-sm text-emerald-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-invoice text-emerald-700"></i> ส่งออกข้อมูลสำหรับ รพ.สต.
+                    </h3>
+                    <p class="text-xs text-emerald-800">
+                        คุณสามารถดาวน์โหลดข้อมูลพิกัดและรายละเอียดทั้งหมดไปใช้ในการทำรายงานประจำเดือนหรือวิเคราะห์ระบาดวิทยาได้
+                    </p>
+                </div>
+
+                <div class="space-y-2">
+                    <button onclick="exportData('csv')" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs py-2.5 px-3 rounded-xl font-medium flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-file-csv text-emerald-400 text-base"></i> ส่งออกไฟล์ CSV (เปิดใน Excel)
+                    </button>
+                    <button onclick="exportData('json')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs py-2.5 px-3 rounded-xl font-medium flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-code text-sky-600 text-base"></i> ส่งออกไฟล์สำรองข้อมูล JSON
+                    </button>
+                </div>
+
+                <div class="border-t border-slate-200 pt-3">
+                    <h4 class="text-xs font-bold text-slate-700 mb-1">คำแนะนำมาตรการ 3 เก็บ สำหรับ อสม.</h4>
+                    <ul class="text-xs text-slate-600 space-y-1 list-disc pl-4">
+                        <li><strong>เก็บบ้าน:</strong> ให้โปร่ง ถ่ายเท ไม่ให้ยุงเกาะพัก</li>
+                        <li><strong>เก็บขยะ:</strong> ทำลายภาชนะขังน้ำรอบบ้าน</li>
+                        <li><strong>เก็บน้ำ:</strong> ปิดฝาภาชนะมิดชิด ใส่ทรายอะเบทหรือปล่อยปลาหางนกยูง</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="p-2.5 bg-slate-100 text-center border-t border-slate-200 text-[10px] text-slate-500 mt-auto">
+                ระบบปักหมุดข้อมูลไข้เลือดออก อสม. ชุมชน &copy; 2026
+            </div>
+        </aside>
+
+        <!-- Right Main Interactive Map -->
+        <main class="flex-1 relative h-full">
+            <div id="map" class="w-full h-full"></div>
+
+            <!-- Floating Quick Controls -->
+            <div class="absolute top-4 right-4 z-[500] flex flex-col gap-2">
+                <button onclick="locateUserPosition()" title="ตำแหน่ง GPS ของคุณ" class="bg-white hover:bg-slate-50 text-slate-700 p-2.5 rounded-xl shadow-lg border border-slate-200 transition active:scale-95 flex items-center justify-center w-10 h-10">
+                    <i class="fa-solid fa-crosshairs text-base text-vhv-600"></i>
+                </button>
+                <button onclick="resetMapView()" title="มุมมองแผนที่เริ่มต้น" class="bg-white hover:bg-slate-50 text-slate-700 p-2.5 rounded-xl shadow-lg border border-slate-200 transition active:scale-95 flex items-center justify-center w-10 h-10">
+                    <i class="fa-solid fa-house text-base text-slate-600"></i>
+                </button>
+            </div>
+
+            <!-- Map Legend Box -->
+            <div class="absolute bottom-6 right-4 z-[500] bg-white/95 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 text-xs space-y-1.5 max-w-[200px]">
+                <div class="font-bold text-slate-700 mb-1 border-b border-slate-100 pb-1">สัญลักษณ์หมุด</div>
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-rose-500 inline-block shadow-sm"></span>
+                    <span class="text-slate-600">พบผู้ป่วยไข้เลือดออก</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-amber-500 inline-block shadow-sm"></span>
+                    <span class="text-slate-600">แหล่งลูกน้ำยุงลาย</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block shadow-sm"></span>
+                    <span class="text-slate-600">พ่นหมอกควัน/ควบคุมแล้ว</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Image Modal Lightbox -->
+    <div id="imageLightbox" class="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4" onclick="closeLightbox()">
+        <div class="relative max-w-3xl w-full bg-slate-900 rounded-2xl overflow-hidden p-2 flex flex-col items-center" onclick="event.stopPropagation()">
+            <button onclick="closeLightbox()" class="absolute top-3 right-3 text-white/80 hover:text-white bg-white/10 p-2 rounded-full w-8 h-8 flex items-center justify-center">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <img id="lightboxImg" src="" class="max-h-[80vh] w-auto object-contain rounded-lg">
+            <p id="lightboxCaption" class="text-white text-xs mt-2 text-center"></p>
+        </div>
+    </div>
+
+    <!-- VHV Identity Profile Modal -->
+    <div id="vhvModal" class="fixed inset-0 z-[1500] bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-id-card text-vhv-600"></i> ข้อมูลระบุตัวตน อสม.
+                </h3>
+                <button onclick="closeVhvLoginModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-นามสกุล อสม.</label>
+                    <input type="text" id="vhvNameInput" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">รหัส อสม. / รหัสประจำตัว</label>
+                    <input type="text" id="vhvCodeInput" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">หมู่บ้าน / ชุมชนที่รับผิดชอบ</label>
+                    <input type="text" id="vhvZoneInput" class="w-full text-xs p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-vhv-500">
+                </div>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeVhvLoginModal()" class="w-1/2 py-2 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg">ยกเลิก</button>
+                <button onclick="saveVhvProfile()" class="w-1/2 py-2 text-xs font-semibold text-white bg-vhv-600 hover:bg-vhv-700 rounded-lg">บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[3000] hidden bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-medium flex items-center gap-2 transition-all">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastText">บันทึกเรียบร้อย</span>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        const DEFAULT_CENTER = [13.7563, 100.5018];
+        const DEFAULT_ZOOM = 13;
+
+        // Sample placeholder images for Mock Data
+        const SAMPLE_IMG_1 = "https://placehold.co/400x300/e2e8f0/475569?text=Mosquito+Breeding";
+        const SAMPLE_IMG_2 = "https://placehold.co/400x300/fee2e2/991b1b?text=Patient+House";
+
+        // Initial Mock Data for VHV
+        const INITIAL_MOCK_DATA = [
+            {
+                id: 'pin-101',
+                type: 'CASE',
+                residentName: 'นายสมศักดิ์ มั่นคง',
+                houseNo: '45/1',
+                community: 'หมู่ 3 ชุมชนวัดตานาน',
+                householdMembers: 4,
+                lat: 13.7590,
+                lng: 100.5060,
+                description: 'พบผู้ป่วยไข้เลือดออก มีอาการไข้สูงลอย เข้ารักษา รพ.แล้ว',
+                reporter: 'อสม. สมศรี (รหัส 4501)',
+                date: '2026-10-25',
+                images: [SAMPLE_IMG_2]
+            },
+            {
+                id: 'pin-102',
+                type: 'LARVA',
+                residentName: 'นางอารีย์ ดีใจ',
+                houseNo: '12',
+                community: 'หมู่ 5 บ้านสวนริมน้ำ',
+                householdMembers: 3,
+                lat: 13.7510,
+                lng: 100.4950,
+                description: 'พบยางรถยนต์เก่าขังน้ำฝน และแจกันดอกไม้มีลูกน้ำยุงลายหนาแน่นมาก',
+                reporter: 'อสม. สมศรี (รหัส 4501)',
+                date: '2026-10-27',
+                images: [SAMPLE_IMG_1]
+            },
+            {
+                id: 'pin-103',
+                type: 'CONTROLLED',
+                residentName: 'นายประวิทย์ รุ่งเรือง',
+                houseNo: '88/2',
+                community: 'หมู่ 1 ซอยสุขสว่าง',
+                householdMembers: 5,
+                lat: 13.7640,
+                lng: 100.4990,
+                description: 'พ่นหมอกควันกำจัดยุง และใส่ทรายอะเบทในภาชนะขังน้ำรอบบ้านเรียบร้อย',
+                reporter: 'อสม. สมพงษ์',
+                date: '2026-10-28',
+                images: []
+            }
+        ];
+
+        // State Variables
+        let pinsData = [];
+        let attachedImages = []; // Stores Base64 images for currently open form
+        let activeFilter = 'ALL';
+        let isClickToPinMode = false;
+        let vhvProfile = { name: 'อสม. สมศรี', code: '4501', zone: 'หมู่ 3 ชุมชนวัดตานาน' };
+        let map, leafletMarkers = [], userLocationMarker = null;
+
+        window.onload = function() {
+            initVhvProfile();
+            initData();
+            
+            // Set default date input to today
+            document.getElementById('formDate').value = new Date().toISOString().split('T')[0];
+
+            // Ensure Leaflet JS is loaded safely before initializing map
+            ensureLeafletLoaded(function() {
+                initMap();
+                renderData();
+            });
+        };
+
+        // Safe Leaflet JS loader with fallback
+        function ensureLeafletLoaded(callback) {
+            if (typeof L !== 'undefined') {
+                callback();
+            } else {
+                console.warn("Leaflet not loaded yet, dynamically injecting script fallback...");
+                const script = document.createElement('script');
+                script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+                script.onload = function() {
+                    callback();
+                };
+                script.onerror = function() {
+                    showToast('ไม่สามารถโหลดไลบรารีแผนที่ได้ กรุณาตรวจสอบอินเทอร์เน็ต', 'danger');
+                };
+                document.head.appendChild(script);
+            }
+        }
+
+        function initVhvProfile() {
+            const savedProfile = localStorage.getItem('vhv_profile_v1');
+            if (savedProfile) {
+                try { vhvProfile = JSON.parse(savedProfile); } catch(e){}
+            }
+            updateVhvBadge();
+        }
+
+        function updateVhvBadge() {
+            document.getElementById('vhvProfileText').innerText = `${vhvProfile.name} (รหัส ${vhvProfile.code})`;
+            document.getElementById('vhvProfileBadge').classList.remove('hidden');
+        }
+
+        function openVhvLoginModal() {
+            document.getElementById('vhvNameInput').value = vhvProfile.name || '';
+            document.getElementById('vhvCodeInput').value = vhvProfile.code || '';
+            document.getElementById('vhvZoneInput').value = vhvProfile.zone || '';
+            document.getElementById('vhvModal').classList.remove('hidden');
+        }
+
+        function closeVhvLoginModal() {
+            document.getElementById('vhvModal').classList.add('hidden');
+        }
+
+        function saveVhvProfile() {
+            vhvProfile = {
+                name: document.getElementById('vhvNameInput').value || 'อสม. ประจำหมู่บ้าน',
+                code: document.getElementById('vhvCodeInput').value || '0000',
+                zone: document.getElementById('vhvZoneInput').value || 'พื้นที่รับผิดชอบ'
+            };
+            localStorage.setItem('vhv_profile_v1', JSON.stringify(vhvProfile));
+            updateVhvBadge();
+            closeVhvLoginModal();
+            showToast('บันทึกข้อมูล อสม. เรียบร้อยแล้ว', 'success');
+        }
+
+        function initData() {
+            const savedData = localStorage.getItem('dengue_vhv_pins_v2');
+            if (savedData) {
+                try { pinsData = JSON.parse(savedData); } catch(e) { pinsData = INITIAL_MOCK_DATA; }
+            } else {
+                pinsData = INITIAL_MOCK_DATA;
+                saveDataToStorage();
+            }
+        }
+
+        function saveDataToStorage() {
+            localStorage.setItem('dengue_vhv_pins_v2', JSON.stringify(pinsData));
+        }
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors | Dengue Alert Tracker VHV'
+            }).addTo(map);
+
+            map.on('click', function(e) {
+                setFormCoordinates(e.latlng.lat, e.latlng.lng);
+                switchTab('reportForm');
+                showToast('เลือกพิกัดบนแผนที่เรียบร้อย', 'info');
+            });
+        }
+
+        function renderData() {
+            leafletMarkers.forEach(m => map.removeLayer(m));
+            leafletMarkers = [];
+
+            const listContainer = document.getElementById('markerListContainer');
+            listContainer.innerHTML = '';
+
+            let casesCount = 0, larvaCount = 0, controlledCount = 0;
+
+            const filteredPins = pinsData.filter(pin => {
+                if (activeFilter === 'ALL') return true;
+                return pin.type === activeFilter;
+            });
+
+            pinsData.forEach(p => {
+                if (p.type === 'CASE') casesCount++;
+                if (p.type === 'LARVA') larvaCount++;
+                if (p.type === 'CONTROLLED') controlledCount++;
+            });
+
+            document.getElementById('statCases').innerText = casesCount;
+            document.getElementById('statLarva').innerText = larvaCount;
+            document.getElementById('statControlled').innerText = controlledCount;
+
+            if (filteredPins.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-8 text-slate-400 text-xs">
+                        <i class="fa-solid fa-folder-open text-2xl mb-1"></i>
+                        <p>ไม่พบรายการหมุดพิกัด</p>
+                    </div>`;
+                return;
+            }
+
+            filteredPins.forEach(pin => {
+                const markerIcon = createCustomMarkerIcon(pin.type);
+                const marker = L.marker([pin.lat, pin.lng], { icon: markerIcon }).addTo(map);
+
+                // Render image thumbnails in popup
+                let popupImagesHTML = '';
+                if (pin.images && pin.images.length > 0) {
+                    popupImagesHTML = `<div class="grid grid-cols-3 gap-1 my-2">` +
+                        pin.images.map((img, idx) => `
+                            <img src="${img}" class="w-full h-12 object-cover rounded cursor-pointer border hover:opacity-80" onclick="openLightbox('${img}', 'รูปที่ ${idx+1} - ${pin.residentName}')">
+                        `).join('') + `</div>`;
+                }
+
+                const popupContent = `
+                    <div class="p-1 font-sans text-xs max-w-[240px]">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="font-bold text-slate-800 text-sm">${getPinTypeLabel(pin.type)}</span>
+                        </div>
+                        <p class="font-semibold text-slate-800"><i class="fa-solid fa-house-chimney text-vhv-600"></i> ${pin.residentName} (บ้านเลขที่ ${pin.houseNo})</p>
+                        <p class="text-slate-600 text-[11px]"><i class="fa-solid fa-location-dot text-rose-500"></i> ${pin.community}</p>
+                        <p class="text-slate-600 text-[11px] mt-1"><i class="fa-solid fa-users text-skybrand-600"></i> ผู้อยู่อาศัยร่วมบ้าน: <strong>${pin.householdMembers || 1} คน</strong></p>
+                        ${popupImagesHTML}
+                        <p class="text-slate-500 text-[11px] mt-1 italic">${pin.description || 'ไม่มีบันทึกเพิ่มเติม'}</p>
+                        <div class="text-[10px] text-slate-400 border-t pt-1 mt-1 flex justify-between">
+                            <span>ผู้บันทึก: ${pin.reporter}</span>
+                            <span>${pin.date}</span>
+                        </div>
+                        <div class="mt-2 pt-1 border-t flex gap-1">
+                            <button onclick="editPin('${pin.id}')" class="flex-1 bg-amber-500 text-white text-[10px] py-1 rounded hover:bg-amber-600">แก้ไข</button>
+                            <button onclick="deletePin('${pin.id}')" class="flex-1 bg-rose-600 text-white text-[10px] py-1 rounded hover:bg-rose-700">ลบหมุด</button>
+                        </div>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent);
+                leafletMarkers.push(marker);
+
+                // Sidebar Card Item
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border bg-white shadow-sm hover:shadow-md transition cursor-pointer ${getBorderClassByType(pin.type)}`;
+                card.onclick = () => {
+                    map.flyTo([pin.lat, pin.lng], 16);
+                    marker.openPopup();
+                };
+
+                const imgBadge = (pin.images && pin.images.length > 0) ? `<span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded"><i class="fa-solid fa-image"></i> ${pin.images.length} รูป</span>` : '';
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full ${getDotColorByType(pin.type)}"></span>
+                            <h4 class="font-bold text-xs text-slate-800">${pin.residentName} (บ้านเลขที่ ${pin.houseNo})</h4>
+                        </div>
+                        <span class="text-[10px] text-slate-400">${pin.date}</span>
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1">${pin.community}</p>
+                    <div class="mt-2 flex items-center justify-between text-[11px]">
+                        <span class="text-slate-500"><i class="fa-solid fa-users"></i> ${pin.householdMembers || 1} คนในบ้าน</span>
+                        <div class="flex items-center gap-2">
+                            ${imgBadge}
+                            <button onclick="event.stopPropagation(); editPin('${pin.id}')" class="text-amber-600 hover:underline">แก้ไข</button>
+                            <button onclick="event.stopPropagation(); deletePin('${pin.id}')" class="text-rose-600 hover:underline">ลบ</button>
+                        </div>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        // Handle File Selection for Image Attachments
+        function handleImageSelection(event) {
+            const files = Array.from(event.target.files);
+            
+            if (attachedImages.length + files.length > 5) {
+                showToast('แนบรูปได้สูงสุดไม่เกิน 5 รูปต่อครั้ง', 'danger');
+                return;
+            }
+
+            files.forEach(file => {
+                if (!file.type.startsWith('image/')) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (attachedImages.length < 5) {
+                        attachedImages.push(e.target.result);
+                        renderImagePreviews();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderImagePreviews() {
+            const previewGrid = document.getElementById('imagePreviewGrid');
+            const badge = document.getElementById('imageCountBadge');
+            previewGrid.innerHTML = '';
+
+            badge.innerText = `${attachedImages.length}/5 รูป`;
+
+            attachedImages.forEach((imgData, index) => {
+                const thumb = document.createElement('div');
+                thumb.className = 'relative group aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100';
+                thumb.innerHTML = `
+                    <img src="${imgData}" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox('${imgData}', 'รูปพรีวิว ${index+1}')">
+                    <button type="button" onclick="removeImage(${index})" class="absolute top-0.5 right-0.5 bg-rose-600 text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center shadow hover:bg-rose-700">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                `;
+                previewGrid.appendChild(thumb);
+            });
+        }
+
+        function removeImage(index) {
+            attachedImages.splice(index, 1);
+            renderImagePreviews();
+        }
+
+        // Form Submit
+        function handleFormSubmit(e) {
+            e.preventDefault();
+
+            const lat = parseFloat(document.getElementById('formLat').value);
+            const lng = parseFloat(document.getElementById('formLng').value);
+
+            if (!lat || !lng) {
+                showToast('กรุณาเลือกพิกัดบนแผนที่ หรือดึง GPS ก่อนบันทึก', 'danger');
+                return;
+            }
+
+            const editingId = document.getElementById('editingId').value;
+            const type = document.getElementById('formType').value;
+            const residentName = document.getElementById('formResidentName').value;
+            const houseNo = document.getElementById('formHouseNo').value;
+            const community = document.getElementById('formCommunity').value;
+            const date = document.getElementById('formDate').value;
+            const householdMembers = parseInt(document.getElementById('formHouseholdMembers').value) || 1;
+            const description = document.getElementById('formDescription').value;
+
+            if (editingId) {
+                const index = pinsData.findIndex(p => p.id === editingId);
+                if (index !== -1) {
+                    pinsData[index] = {
+                        ...pinsData[index],
+                        type, residentName, houseNo, community, date, householdMembers, description,
+                        images: [...attachedImages],
+                        lat, lng
+                    };
+                    showToast('อัปเดตข้อมูลพิกัดเรียบร้อยแล้ว', 'success');
+                }
+            } else {
+                const newPin = {
+                    id: 'pin-' + Date.now(),
+                    type,
+                    residentName,
+                    houseNo,
+                    community,
+                    date,
+                    householdMembers,
+                    description,
+                    images: [...attachedImages],
+                    reporter: `${vhvProfile.name} (รหัส ${vhvProfile.code})`,
+                    lat,
+                    lng
+                };
+                pinsData.unshift(newPin);
+                showToast('ปักหมุดข้อมูลใหม่เรียบร้อยแล้ว', 'success');
+            }
+
+            saveDataToStorage();
+            renderData();
+            resetForm();
+            switchTab('mapControl');
+        }
+
+        function editPin(id) {
+            const pin = pinsData.find(p => p.id === id);
+            if (!pin) return;
+
+            document.getElementById('editingId').value = pin.id;
+            document.getElementById('formType').value = pin.type;
+            document.getElementById('formResidentName').value = pin.residentName || '';
+            document.getElementById('formHouseNo').value = pin.houseNo || '';
+            document.getElementById('formCommunity').value = pin.community || '';
+            document.getElementById('formDate').value = pin.date || new Date().toISOString().split('T')[0];
+            document.getElementById('formHouseholdMembers').value = pin.householdMembers || 1;
+            document.getElementById('formDescription').value = pin.description || '';
+            
+            attachedImages = pin.images ? [...pin.images] : [];
+            renderImagePreviews();
+
+            document.getElementById('submitBtnText').innerText = 'อัปเดตข้อมูล';
+            setFormCoordinates(pin.lat, pin.lng);
+            switchTab('reportForm');
+        }
+
+        function deletePin(id) {
+            if (confirm('คุณต้องการลบหมุดพิกัดนี้ใช่หรือไม่?')) {
+                pinsData = pinsData.filter(p => p.id !== id);
+                saveDataToStorage();
+                renderData();
+                showToast('ลบหมุดเรียบร้อยแล้ว', 'info');
+            }
+        }
+
+        function resetForm() {
+            document.getElementById('pinDataForm').reset();
+            document.getElementById('editingId').value = '';
+            document.getElementById('formLat').value = '';
+            document.getElementById('formLng').value = '';
+            document.getElementById('formDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('coordsDisplay').innerHTML = 'ยังไม่ได้ระบุพิกัด (คลิกแผนที่หรือกดดึง GPS)';
+            document.getElementById('submitBtnText').innerText = 'บันทึกข้อมูลหมุด';
+            attachedImages = [];
+            renderImagePreviews();
+        }
+
+        function setFormCoordinates(lat, lng) {
+            document.getElementById('formLat').value = lat;
+            document.getElementById('formLng').value = lng;
+            document.getElementById('coordsDisplay').innerHTML = `
+                <span class="text-slate-800 font-semibold"><i class="fa-solid fa-check text-emerald-500"></i> Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}</span>
+            `;
+        }
+
+        function getCurrentLocationForForm() {
+            if ("geolocation" in navigator) {
+                showToast('กำลังค้นหาพิกัด GPS...', 'info');
+                navigator.geolocation.getCurrentPosition(
+                    pos => {
+                        setFormCoordinates(pos.coords.latitude, pos.coords.longitude);
+                        map.flyTo([pos.coords.latitude, pos.coords.longitude], 16);
+                        showToast('ดึงพิกัด GPS ปัจจุบันเรียบร้อย', 'success');
+                    },
+                    err => showToast('ไม่สามารถเข้าถึง GPS ของอุปกรณ์ได้', 'danger')
+                );
+            }
+        }
+
+        function pinCurrentGPS() {
+            switchTab('reportForm');
+            getCurrentLocationForForm();
+        }
+
+        function locateUserPosition() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const userPos = [pos.coords.latitude, pos.coords.longitude];
+                    map.flyTo(userPos, 16);
+                    showToast('ตำแหน่งของคุณบนแผนที่', 'info');
+                });
+            }
+        }
+
+        function resetMapView() {
+            map.flyTo(DEFAULT_CENTER, DEFAULT_ZOOM);
+        }
+
+        function openLightbox(imgSrc, caption) {
+            document.getElementById('lightboxImg').src = imgSrc;
+            document.getElementById('lightboxCaption').innerText = caption || '';
+            document.getElementById('imageLightbox').classList.remove('hidden');
+        }
+
+        function closeLightbox() {
+            document.getElementById('imageLightbox').classList.add('hidden');
+        }
+
+        function setFilter(type) {
+            activeFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active-filter', 'bg-slate-800', 'text-white');
+                btn.classList.add('bg-slate-100', 'text-slate-600');
+            });
+            event.target.classList.add('active-filter', 'bg-slate-800', 'text-white');
+            renderData();
+        }
+
+        function filterMarkers() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const items = document.getElementById('markerListContainer').children;
+
+            Array.from(items).forEach(item => {
+                const text = item.innerText.toLowerCase();
+                item.style.display = text.includes(query) ? 'block' : 'none';
+            });
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('[id^="panel-"]').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab-"]').forEach(t => {
+                t.classList.remove('text-vhv-700', 'border-b-2', 'border-vhv-600');
+                t.classList.add('text-slate-500');
+            });
+
+            document.getElementById(`panel-${tabName}`).classList.remove('hidden');
+            const activeTab = document.getElementById(`tab-${tabName}`);
+            activeTab.classList.add('text-vhv-700', 'border-b-2', 'border-vhv-600');
+            activeTab.classList.remove('text-slate-500');
+        }
+
+        function exportData(format) {
+            if (pinsData.length === 0) {
+                showToast('ไม่มีข้อมูลสำหรับส่งออก', 'danger');
+                return;
+            }
+
+            let dataStr = "";
+            let fileName = `dengue_vhv_report_${new Date().toISOString().split('T')[0]}`;
+
+            if (format === 'json') {
+                dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(pinsData, null, 2));
+                fileName += ".json";
+            } else if (format === 'csv') {
+                let csv = "\uFEFFid,type,residentName,houseNo,community,householdMembers,date,latitude,longitude,description,reporter,imageCount\n";
+                pinsData.forEach(p => {
+                    const imgCount = p.images ? p.images.length : 0;
+                    csv += `"${p.id}","${p.type}","${p.residentName}","${p.houseNo}","${p.community}",${p.householdMembers || 1},"${p.date}",${p.lat},${p.lng},"${p.description || ''}","${p.reporter}",${imgCount}\n`;
+                });
+                dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+                fileName += ".csv";
+            }
+
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", fileName);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+
+            showToast(`ส่งออกไฟล์ ${format.toUpperCase()} เรียบร้อย`, 'success');
+        }
+
+        function getPinTypeLabel(type) {
+            switch(type) {
+                case 'CASE': return 'พบผู้ป่วยไข้เลือดออก';
+                case 'LARVA': return 'แหล่งลูกน้ำยุงลาย';
+                case 'CONTROLLED': return 'พ่นยา/ควบคุมแล้ว';
+                default: return 'จุดเสี่ยง';
+            }
+        }
+
+        function getDotColorByType(type) {
+            switch(type) {
+                case 'CASE': return 'bg-rose-500';
+                case 'LARVA': return 'bg-amber-500';
+                default: return 'bg-emerald-500';
+            }
+        }
+
+        function getBorderClassByType(type) {
+            switch(type) {
+                case 'CASE': return 'border-l-4 border-l-rose-500 border-slate-200';
+                case 'LARVA': return 'border-l-4 border-l-amber-500 border-slate-200';
+                default: return 'border-l-4 border-l-emerald-500 border-slate-200';
+            }
+        }
+
+        function createCustomMarkerIcon(type) {
+            let className = '';
+            let iconClass = '';
+            
+            if (type === 'CASE') {
+                className = 'pulse-marker-red';
+                iconClass = 'fa-user-injured';
+            } else if (type === 'LARVA') {
+                className = 'pulse-marker-yellow';
+                iconClass = 'fa-droplet';
+            } else {
+                className = 'bg-emerald-500';
+                iconClass = 'fa-shield-halved';
+            }
+
+            return L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div class="${className} w-7 h-7 flex items-center justify-center text-white text-xs shadow-md border-2 border-white rounded-full"><i class="fa-solid ${iconClass}"></i></div>`,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastText = document.getElementById('toastText');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastText.innerText = message;
+
+            if (type === 'danger') {
+                toastIcon.className = 'fa-solid fa-circle-xmark text-rose-400';
+            } else if (type === 'info') {
+                toastIcon.className = 'fa-solid fa-circle-info text-sky-400';
+            } else {
+                toastIcon.className = 'fa-solid fa-circle-check text-emerald-400';
+            }
+
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
